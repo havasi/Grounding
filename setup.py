@@ -12,7 +12,8 @@ setup(name = 'grounding',
         description = 'Learning to ground sensory data using OMCS',
         author = 'Catherine Havasi and Rob Speer',
         author_email = 'conceptnet@media.mit.edu',
-        packages = ['./grounding'],
-        package_dir = {'./grounding': 'grounding'},
+        packages = ['grounding'],
+        package_dir = {'grounding': 'grounding'},
+        package_data = {'grounding': ['nodebox_data/*.txt']},
         #scripts = ['path/to/script']
         )
