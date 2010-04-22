@@ -9,26 +9,30 @@ class Color(models.Model):
     green = models.PositiveSmallIntegerField()
     blue = models.PositiveSmallIntegerField()
 
+    class Meta:
+        db_table = 'conceptnet_color'
+
     def __unicode__(self):
-    	return u"rgb(%s,%s,%s)" % (self.red, self.green, self.blue)
+        return u"rgb(%s,%s,%s)" % (self.red, self.green, self.blue)
 
 class NotColorfulAssertion(models.Model, ScoredModel):
-	objects = models.Manager()
-	useful = UsefulAssertionManager()
-	language = models.ForeignKey(Language)
-	concept = models.ForeignKey(Concept)
-	score = models.IntegerField(default=0)
-	votes = generic.GenericRelation(Vote)
+    objects = models.Manager()
+    useful = UsefulAssertionManager()
+    language = models.ForeignKey(Language)
+    concept = models.ForeignKey(Concept)
+    score = models.IntegerField(default=0)
+    votes = generic.GenericRelation(Vote)
 
-	class Meta:
-		unique_together = ('concept', 'language')
-		ordering = ['-score']
+    class Meta:
+        db_table = 'conceptnet_notcolorfulassertion'
+        unique_together = ('concept', 'language')
+        ordering = ['-score']
 
-	def __unicode__(self):
-		return u"NotColorfulAssertion(%s)" % (self.concept.text)
+    def __unicode__(self):
+        return u"NotColorfulAssertion(%s)" % (self.concept.text)
 
-    	def get_absolute_url(self):
-        	return '/%s/notcolorfulassertion/%s/' % (self.language.id, self.id)
+        def get_absolute_url(self):
+            return '/%s/notcolorfulassertion/%s/' % (self.language.id, self.id)
 
 class ColorAssertion(models.Model, ScoredModel):
     # Managers
@@ -43,6 +47,7 @@ class ColorAssertion(models.Model, ScoredModel):
     class Meta:
         unique_together = ('concept', 'color', 'language')
         ordering = ['-score']
+        db_table = 'conceptnet_colorassertion'
 
     def __unicode__(self):
         #return "Assertion"

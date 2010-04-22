@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from distutils.core import setup
+from setuptools import setup
 
 from sys import version
 if version < '2.2.3':
@@ -14,6 +14,6 @@ setup(name = 'grounding',
         author_email = 'conceptnet@media.mit.edu',
         packages = ['grounding'],
         package_dir = {'grounding': 'grounding'},
-        package_data = {'grounding': ['nodebox_data/*.txt']},
+        package_data = {'grounding': ['data/nodebox/*.txt', 'data/x11/*.txt']},
         #scripts = ['path/to/script']
         )

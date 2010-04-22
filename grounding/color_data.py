@@ -2,7 +2,17 @@ from pkg_resources import resource_filename, resource_stream
 from collections import defaultdict
 from csc.conceptnet4.models import RightFeature, Assertion, Language
 from grounding.models import ColorAssertion, NotColorfulAssertion
-from csc.divisi.util import get_picklecached_thing
+from csc.util.persist import PickleDict
+from csc import divisi2
+from grounding.colorizer import Colorizer
+import numpy
+import logging
+
+log = logging.getLogger('colorizer')
+log.setLevel(logging.INFO)
+logging.basicConfig()
+
+pd = PickleDict(resource_filename('grounding', 'pickledata'))
 
 objects_and_colors = defaultdict(list)
 
@@ -10,11 +20,12 @@ colorlist = ['blue', 'black', 'brown', 'green', 'grey', 'orange', 'pink', 'purpl
 rgb = {'blue': (0,0,255), 'black': (0,0,0), 'brown': (139, 69, 19), 'green': (0, 255, 0), 'grey': (100,100,100), 'orange': (255, 165,0), 'pink': (255,105,180), 'purple': (160, 32, 240), 'red': (255,0,0), 'white': (255, 255, 255), 'yellow': (255,255,0)}
 en = Language.get('en')
 
+@pd.lazy(version=1)
 def make_color_data():
     # Nodebox
     print "Constructing from NodeBox"
     for color in colorlist:
-        data_stream = resource_stream('grounding', 'nodebox_data/' + color + '.txt')
+        data_stream = resource_stream('grounding', 'data/nodebox/' + color + '.txt')
         sets = [x.strip('\n') for x in data_stream.readlines()]
         clist = ','.join(sets)
         words = clist.split(',')            
@@ -50,17 +61,49 @@ def make_color_data():
         objects_and_colors[object].append(color)
     return objects_and_colors
 
-def get_not_colorful_concepts(objects_and_colors):
+@pd.lazy(version=1)
+def get_colorfulness():
+    objects_and_colors = make_color_data()
     print "Finding Uncolorful Concepts"
-    color_or_country = defaultdict(list)
+    colorfulness = defaultdict(list)
     for object in objects_and_colors:
-        color_or_country[object].append(1)
+        colorfulness[object].append(1)
     notcolor = NotColorfulAssertion.objects.filter(score__gt=0)
     for lack in notcolor:
         object = lack.concept.text
         print object
-        color_or_country[object].append(0)
-    return color_or_country
-        
-objects_and_colors = get_picklecached_thing('objects_and_colors.pickle', make_color_data)
-color_or_country = get_picklecached_thing('colorfulness.pickle', lambda: get_not_colorful_concepts(objects_and_colors))
+        colorfulness[object].append(0)
+    return colorfulness
+
+@pd.lazy(version=1)
+def make_color_matrix():
+    colorfulness = get_colorfulness()
+    objects_and_colors = make_color_data()
+    objects = divisi2.OrderedSet()
+    objects.extend(colorfulness.keys())
+    objects.extend(objects_and_colors.keys())
+    colors = divisi2.DenseMatrix(row_labels=objects, col_labels=['red','green','blue','colorful'])
+    for thing,values in colorfulness.items():
+        colorfulness = numpy.sum(values)/len(values)
+        colors.set_entry_named(thing, 'colorful', colorfulness)
+
+    for thing, values in objects_and_colors.items():
+        red = numpy.sum([x[0] for x in values])/len(values)
+        green = numpy.sum([x[1] for x in values])/len(values)
+        blue = numpy.sum([x[2] for x in values])/len(values)
+
+        colors.set_entry_named(thing, 'red', red)
+        colors.set_entry_named(thing, 'green', green)
+        colors.set_entry_named(thing, 'blue', blue)
+
+    return colors
+
+def make_colorizer():
+    log.info('Loading ConceptNet matrix')
+    cnet = divisi2.network.conceptnet_matrix('en')
+    log.info('Loading color matrix')
+    colors = make_color_matrix()
+    log.info('Building colorizer')
+    return Colorizer(cnet, colors)
+
+colorizer = make_colorizer()
