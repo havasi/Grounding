@@ -98,6 +98,32 @@ def make_color_matrix():
 
     return colors
 
+def x11_matrix():
+    colormap = {}
+    firstline = True
+    for line in resource_stream('grounding', 'data/x11/rgb.txt'):
+        if firstline: # skip the header
+            firstline = False
+            continue
+        if line.strip():
+            rgb, name = line.strip().split('\t\t')
+            r, g, b = rgb.split()
+            colormap[name] = numpy.array([r, g, b])
+    colors = divisi2.OrderedSet(colormap.keys())
+    matrix = divisi2.DenseMatrix(row_labels=colors,
+                                 col_labels=['red', 'green', 'blue',
+                                             'colorful'])
+    for colorname, rgb in colormap.items():
+        matrix[matrix.row_index(colorname), 0:3] = rgb
+    matrix[:,3] = 1
+    return matrix
+
+def nearest_color(colormat, rgb):
+    diffs = numpy.abs(colormat[:,:3] - rgb)
+    distances = numpy.sum(diffs, axis=-1)
+    best = numpy.argmin(distances)
+    return colormat.row_label(best)
+
 def make_colorizer():
     log.info('Loading ConceptNet matrix')
     cnet = divisi2.network.conceptnet_matrix('en')
@@ -107,3 +133,4 @@ def make_colorizer():
     return Colorizer(cnet, colors)
 
 colorizer = make_colorizer()
+x11 = x11_matrix()
