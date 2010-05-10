@@ -17,7 +17,7 @@ class Colorizer(object):
         if text not in self.U.row_labels: return None
         vector = self.U.row_named(text)
         
-        non_color_weight = numpy.maximum(0, divisi2.dot(self.U_slice * self.S * self.S, vector))**3
+        non_color_weight = numpy.maximum(0, divisi2.dot(self.U_slice * self.S * self.S, vector))**4
         color_weight = non_color_weight * self.colors_slice[:, 3]
         
         total_nc_weight = numpy.sum(non_color_weight)
