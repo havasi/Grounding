@@ -1,14 +1,12 @@
 from __future__ import with_statement
 import numpy as np
-from colorsurvey import pd
 from matplotlib.colors import rgb_to_hsv
 from matplotlib.figure import Figure
 import matplotlib.pyplot as plt
+import cPickle as pickle
 
-DATA_NAME = 'female'
-
-def get_plotdata():
-    colordata = pd['median_colors_%s' % DATA_NAME]
+def get_plotdata(data_name):
+    colordata = pickle.load('data/xkcd/%s' % data_name)
     plotdata = {}
     for key, data in colordata.items():
         if key.find('nigger') > -1: continue
@@ -50,7 +48,7 @@ def make_miniplot():
     
     plt.savefig('mini_colorwheel.png', dpi=100)
 
-def make_plot():
+def make_plot(data_name):
     plt.figure(figsize=(15, 15), dpi=100)
     plt.grid(False)
     polar = plt.subplot(111, polar=True, axisbg=(0.5, 0.5, 0.5))
@@ -80,9 +78,7 @@ def make_plot():
         #print text
         plt.text(theta, r, text.decode('utf-8'), size=size/2.0, color=textcolor)
     
-    plt.savefig('colorwheel_%s.png' % DATA_NAME, dpi=500)
+    plt.savefig('colorwheel_%s.png' % data_name, dpi=500)
 
 if __name__ == '__main__':
-    make_plot()
-    #make_miniplot()
-    make_html()
+    make_plot('median_colors')
