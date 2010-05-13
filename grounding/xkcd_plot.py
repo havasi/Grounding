@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import cPickle as pickle
 
 def get_plotdata(data_name):
-    colordata = pickle.load('data/xkcd/%s' % data_name)
+    colordata = pickle.load(open('data/xkcd/%s' % data_name))
     plotdata = {}
     for key, data in colordata.items():
         if key.find('nigger') > -1: continue
@@ -82,3 +82,4 @@ def make_plot(data_name):
 
 if __name__ == '__main__':
     make_plot('median_colors')
+
