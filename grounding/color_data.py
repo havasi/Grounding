@@ -1,22 +1,40 @@
 from pkg_resources import resource_filename, resource_stream
 from collections import defaultdict
-from csc.conceptnet4.models import RightFeature, Assertion, Language
+from csc.conceptnet.models import RightFeature, Assertion, Language
 from grounding.models import ColorAssertion, NotColorfulAssertion
 from csc.util.persist import PickleDict
 from csc import divisi2
+from colormath.color_objects import LuvColor, LabColor, RGBColor
 from grounding.colorizer import Colorizer
-from grounding import xkcd_plot
 import numpy as np
 import logging
 import random
+
+def rgb_to_luv(rgb):
+    rgbcolor = RGBColor(*rgb)
+    luvcolor = rgbcolor.convert_to('xyz').convert_to('luv')
+    return (luvcolor.luv_l, luvcolor.luv_u, luvcolor.luv_v)
+
+def rgb_to_lab(rgb):
+    rgbcolor = RGBColor(*rgb)
+    labcolor = rgbcolor.convert_to('lab')
+    return (labcolor.lab_l, labcolor.lab_a, labcolor.lab_b)
+
+def lab_to_rgb(lab):
+    labcolor = LabColor(*lab)
+    rgbcolor = labcolor.convert_to('rgb')
+    return (rgbcolor.rgb_r, rgbcolor.rgb_g, rgbcolor.rgb_b)
+
+def luv_to_rgb(luv):
+    luvcolor = LuvColor(*luv)
+    rgbcolor = luvcolor.convert_to('rgb')
+    return (rgbcolor.rgb_r, rgbcolor.rgb_g, rgbcolor.rgb_b)
 
 log = logging.getLogger('colorizer')
 log.setLevel(logging.INFO)
 logging.basicConfig()
 
-pd = PickleDict(resource_filename('grounding', 'pickledata'))
-
-objects_and_colors = defaultdict(list)
+pd = PickleDict(resource_filename('grounding', 'pickledata'), gzip=False)
 
 colorlist = ['blue', 'black', 'brown', 'green', 'grey', 'orange', 'pink', 'purple', 'red', 'white', 'yellow']
 rgb = {'blue': (0,0,255), 'black': (0,0,0), 'brown': (139, 69, 19), 'green': (0, 255, 0), 'grey': (100,100,100), 'orange': (255, 165,0), 'pink': (255,105,180), 'purple': (160, 32, 240), 'red': (255,0,0), 'white': (255, 255, 255), 'yellow': (255,255,0)}
@@ -36,8 +54,126 @@ def medianesque(array):
     distances = [total_distance(array, array[i]) for i in xrange(array.shape[0])]
     return array[np.argmin(distances)]
 
+def component_median(array):
+    return np.median(array, axis=0)
+
+@pd.lazy(version=2)
+def make_luv_color_data():
+    objects_and_colors = defaultdict(list)
+
+    # Nodebox
+    print "Constructing from NodeBox"
+    for color in colorlist:
+        data_stream = resource_stream('grounding', 'data/nodebox/' + color + '.txt')
+        sets = [x.strip('\n') for x in data_stream.readlines()]
+        clist = ','.join(sets)
+        words = clist.split(',')            
+        for word in words:
+            word = word.strip()
+            if word == '': continue
+            print color, word
+            objects_and_colors[en.nl.normalize(word)].append(rgb_to_luv(rgb[color]))
+
+    # ConceptNet
+    print "Constructing from ConceptNet"
+    for color in colorlist:
+        assertions = Assertion.objects.filter(
+            concept2__text=color,
+            relation__name='HasProperty',
+            language__id='en',
+            score__gt=0,
+            frequency__value__gt=0,
+        )
+        for theassertion in assertions:
+            object = theassertion.concept1.text
+            print color, object
+            objects_and_colors[object].append(rgb_to_luv(rgb[color]))
+
+    # Color Doctor
+    print "Constructing from Color Doctor"
+    colorful = ColorAssertion.objects.filter(score__gt=0,)
+    for cd in colorful:
+        object = cd.concept.text
+        ccolor = cd.color
+        color = (ccolor.red, ccolor.green, ccolor.blue)
+        print color, object
+        objects_and_colors[object].append(color)
+
+    # xkcd
+    print "Constructing from xkcd"
+    with open('grouped_color_data.txt') as inputlines:
+        for line in inputlines:
+            try:
+                colorname, userid, r, g, b, monitor, colorblind, male = line.strip().split('|')
+            except ValueError:
+                continue
+            rgblist = [float(r), float(g), float(b)]
+            for concept in en.nl.extract_concepts(colorname, check_conceptnet=True):
+                print rgblist, concept
+                objects_and_colors[concept].append(rgb_to_luv(rgblist))
+
+    return objects_and_colors
+
+@pd.lazy(version=2)
+def make_lab_color_data():
+    objects_and_colors = defaultdict(list)
+
+    # Nodebox
+    print "Constructing from NodeBox"
+    for color in colorlist:
+        data_stream = resource_stream('grounding', 'data/nodebox/' + color + '.txt')
+        sets = [x.strip('\n') for x in data_stream.readlines()]
+        clist = ','.join(sets)
+        words = clist.split(',')            
+        for word in words:
+            word = word.strip()
+            if word == '': continue
+            print color, word
+            objects_and_colors[en.nl.normalize(word)].append(rgb_to_lab(rgb[color]))
+
+    # ConceptNet
+    print "Constructing from ConceptNet"
+    for color in colorlist:
+        assertions = Assertion.objects.filter(
+            concept2__text=color,
+            relation__name='HasProperty',
+            language__id='en',
+            score__gt=0,
+            frequency__value__gt=0,
+        )
+        for theassertion in assertions:
+            object = theassertion.concept1.text
+            print color, object
+            objects_and_colors[object].append(rgb_to_lab(rgb[color]))
+
+    # Color Doctor
+    print "Constructing from Color Doctor"
+    colorful = ColorAssertion.objects.filter(score__gt=0,)
+    for cd in colorful:
+        object = cd.concept.text
+        ccolor = cd.color
+        color = (ccolor.red, ccolor.green, ccolor.blue)
+        print color, object
+        objects_and_colors[object].append(color)
+
+    # xkcd
+    print "Constructing from xkcd"
+    with open('grouped_color_data.txt') as inputlines:
+        for line in inputlines:
+            try:
+                colorname, userid, r, g, b, monitor, colorblind, male = line.strip().split('|')
+            except ValueError:
+                continue
+            rgblist = [float(r), float(g), float(b)]
+            for concept in en.nl.extract_concepts(colorname, check_conceptnet=True):
+                print rgblist, concept
+                objects_and_colors[concept].append(rgb_to_lab(rgblist))
+
+    return objects_and_colors
+
 @pd.lazy(version=2)
 def make_color_data():
+    from grounding import xkcd_plot
     # Nodebox
     print "Constructing from NodeBox"
     for color in colorlist:
@@ -92,9 +228,9 @@ def make_color_data():
 
     return objects_and_colors
 
-@pd.lazy(version=2)
+@pd.lazy(version=3)
 def get_colorfulness():
-    objects_and_colors = make_color_data()
+    objects_and_colors = make_lab_color_data()
     print "Finding Uncolorful Concepts"
     colorfulness = defaultdict(list)
     for object in objects_and_colors:
@@ -106,49 +242,30 @@ def get_colorfulness():
         colorfulness[object].append(0)
     return colorfulness
 
-@pd.lazy(version=3)
+@pd.lazy(version=4)
 def make_color_matrix():
     colorfulness = get_colorfulness()
-    objects_and_colors = make_color_data()
+    objects_and_colors = make_lab_color_data()
     objects = divisi2.OrderedSet()
     objects.extend(colorfulness.keys())
     objects.extend(objects_and_colors.keys())
-    colors = divisi2.DenseMatrix(row_labels=objects, col_labels=['red','green','blue','colorful'])
+    colors = divisi2.DenseMatrix(row_labels=objects, col_labels=['L','a','b','colorful'])
     for thing,values in colorfulness.items():
         colorfulness = np.sum(values)/len(values)
         colors.set_entry_named(thing, 'colorful', colorfulness)
 
     for thing, values in objects_and_colors.items():
-        red, green, blue = medianesque(values)
+        L, a, b = medianesque(np.array(values))
 
-        colors.set_entry_named(thing, 'red', red)
-        colors.set_entry_named(thing, 'green', green)
-        colors.set_entry_named(thing, 'blue', blue)
+        colors.set_entry_named(thing, 'L', L)
+        colors.set_entry_named(thing, 'a', a)
+        colors.set_entry_named(thing, 'b', b)
 
     return colors
 
-def x11_matrix():
-    colormap = {}
-    firstline = True
-    for line in resource_stream('grounding', 'data/x11/rgb.txt'):
-        if firstline: # skip the header
-            firstline = False
-            continue
-        if line.strip():
-            rgb, name = line.strip().split('\t\t')
-            r, g, b = rgb.split()
-            colormap[name] = np.array([r, g, b])
-    colors = divisi2.OrderedSet(colormap.keys())
-    matrix = divisi2.DenseMatrix(row_labels=colors,
-                                 col_labels=['red', 'green', 'blue',
-                                             'colorful'])
-    for colorname, rgb in colormap.items():
-        matrix[matrix.row_index(colorname), 0:3] = rgb
-    matrix[:,3] = 1
-    return matrix
-
 def nearest_color(colormat, rgb):
-    diffs = np.abs(colormat[:,:3] - rgb)
+    lab = rgb_to_lab(rgb)
+    diffs = np.abs(colormat[:,:3] - lab)
     distances = np.sum(diffs, axis=-1)
     best = np.argmin(distances)
     return colormat.row_label(best)
