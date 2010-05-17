@@ -14,22 +14,18 @@ footer = """
 </body></html>
 """
 
+def euclidean_distance(vec1, vec2):
+    return np.sqrt(np.sum((vec1-vec2)**2))
+
 def get_samples(colors, n=8):
-    if len(colors) > 200: colors = random.sample(colors, 200)
-    color_array = np.array(colors)
-    samples = kmeans(color_array, n*3)[0]
-    while len(samples) < n:
-        color_array += np.random.normal(size=color_array.shape)/100.0
-        samples = kmeans(color_array, n*3)[0]
-    codes = vq(color_array, samples)[0]
-    counts = np.zeros((len(samples),))
-    for code in codes:
-        counts[code] += 1
-    ordered = np.sort(counts)
-    median = ordered[-n]
-    result = samples[counts >= median]
-    assert len(result) >= n
-    return result[:n]
+    mean = np.median(colors, axis=0)
+    if len(colors) > n*4:
+        samples = np.array(random.sample(colors, n*4))
+    else:
+        samples = np.array(colors)
+    distances = np.array([euclidean_distance(color, mean) for color in samples])
+    order = np.argsort(distances)
+    return samples[order][:n]
 
 def rgb_samples(colors, n=8):
     samples = get_samples(colors, n)
@@ -44,7 +40,7 @@ def make_html():
         colors = colordata[colorname]
         freq = len(colors)
         if freq >= 8:
-            samples = rgb_samples(colors)
+            samples = rgb_samples(colors, 8)
             print colorname, samples[0]
             print >> out, "<tr>"
             for sample in samples:
