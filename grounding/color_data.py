@@ -59,9 +59,10 @@ def component_median(array):
 
 @pd.lazy(version=1)
 def training_and_test_data():
-    print "Constructing from xkcd"
+    print "Constructing test/train from xkcd"
     train = defaultdict(list)
     test = defaultdict(list)
+    combined = defaultdict(list)
 
     with open('grouped_color_data.txt') as inputlines:
         for line in inputlines:
@@ -69,12 +70,16 @@ def training_and_test_data():
                 colorname, userid, r, g, b, monitor, colorblind, male = line.strip().split('|')
             except ValueError:
                 continue
-            if random.random < 0.5: target=train
-            else: target=test
             rgblist = [float(r), float(g), float(b)]
-            target[concept].append(rgblist)
-            print concept
-
+            combined[colorname].append(rgblist)
+            print colorname.decode('utf-8').encode('ascii', 'replace')
+    
+    training = True
+    for colorname in combined:
+        if training: target = train
+        else: target = test
+        training = not training
+        target[colorname] = combined[colorname]
     return train, test
 
 @pd.lazy(version=2)
@@ -83,8 +88,7 @@ def make_lab_color_data():
     Returns a dictionary mapping color names to lists of Lab color values.
     """
     objects_and_colors = defaultdict(list)
-    #xkcd_train, xkcd_test = training_and_test_data()
-
+    xkcd_train, xkcd_test = training_and_test_data()
 
     # Nodebox
     print "Constructing from NodeBox"
@@ -114,28 +118,13 @@ def make_lab_color_data():
             print color, object
             objects_and_colors[object].append(rgb_to_lab(rgb[color]))
 
-    # Color Doctor
-    print "Constructing from Color Doctor"
-    colorful = ColorAssertion.objects.filter(score__gt=0,)
-    for cd in colorful:
-        object = cd.concept.text
-        ccolor = cd.color
-        color = (ccolor.red, ccolor.green, ccolor.blue)
-        print color, object
-        objects_and_colors[object].append(color)
-
     # xkcd
     print "Constructing from xkcd"
-    with open('grouped_color_data.txt') as inputlines:
-        for line in inputlines:
-            try:
-                colorname, userid, r, g, b, monitor, colorblind, male = line.strip().split('|')
-            except ValueError:
-                continue
-            rgblist = [float(r), float(g), float(b)]
-            for concept in en.nl.extract_concepts(colorname, check_conceptnet=True):
-                print rgblist, concept
-                objects_and_colors[concept].append(rgb_to_lab(rgblist))
+    for text in xkcd_train:
+        concepts = en.nl.extract_concepts(text, check_conceptnet=True)
+        for concept in concepts:
+            objects_and_colors[concept].extend([rgb_to_lab(x) for x in xkcd_train[text]])
+            print concept
 
     return objects_and_colors
 
@@ -153,10 +142,12 @@ def make_user_test():
             test_dict[key] = dict[key]
     return (training_dict, test_dict)
     
-
+9
 @pd.lazy(version=2)
 def make_color_data():
     from grounding import xkcd_plot
+    objects_and_colors = defaultdict(list)
+
     # Nodebox
     print "Constructing from NodeBox"
     for color in colorlist:
@@ -245,6 +236,15 @@ def make_color_matrix():
         colors.set_entry_named(thing, 'b', b)
 
     return colors
+
+@pd.lazy(version=1)
+def make_test_data():
+    train, test = training_and_test_data()
+    testdata = {}
+    for colorname in test:
+        if len(test[colorname]) > 3:
+            testdata[colorname] = medianesque([rgb_to_lab(c) for c in test[colorname]])
+    return testdata
 
 def make_color_matrix_for_test(objects_and_colors):
     colorfulness = get_colorfulness()
