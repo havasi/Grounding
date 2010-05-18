@@ -1,34 +1,88 @@
 from csc import divisi2
-import numpy
+from csc.divisi2.ordered_set import OrderedSet
+from color_data import make_color_matrix, lab_to_rgb, make_user_test, make_color_matrix_for_test, medianesque
+import numpy, math
+import logging
+
+log = logging.getLogger('colorizer')
+log.setLevel(logging.INFO)
+logging.basicConfig()
+
 
 class Colorizer(object):
-    def __init__(self, concept_matrix, color_matrix):
-        self.concept_matrix = concept_matrix
+    def __init__(self, spreading_activation, color_matrix):
+        self.spreading_activation = spreading_activation
         self.color_matrix = color_matrix
-        self.overlap_labels = divisi2.OrderedSet(set(color_matrix.row_labels) & set(concept_matrix.row_labels))
-        self.color_label_map = [color_matrix.row_labels.index(label) for label in self.overlap_labels]
-        self.concept_label_map = [concept_matrix.row_labels.index(label) for label in self.overlap_labels]
+        self.colorful_concepts = divisi2.OrderedSet(set(color_matrix.row_labels) & set(spreading_activation.row_labels))
+        self.color_label_map = [color_matrix.row_labels.index(label) for label in self.colorful_concepts]
+        self.concept_label_map = [spreading_activation.row_labels.index(label) for label in self.colorful_concepts]
+        self.smaller_color_matrix = self.color_matrix[self.color_label_map]
+        self.colorfulness = self.smaller_color_matrix[:,3]
 
-        self.U, self.S, self.V = concept_matrix.normalize_all().svd(k=100)
-        self.U_slice = self.U[self.concept_label_map, :]
-        self.colors_slice = color_matrix[self.color_label_map, :]
+    def lab_color_for_concept(self, text):
+        if text in self.color_matrix.row_labels:
+            return self.color_matrix.row_named(text)
 
-    def color_for_concept(self, text):
-        if text not in self.U.row_labels: return None
-        vector = self.U.row_named(text)
+        if text not in self.spreading_activation.row_labels:
+            return None
+
+        vector = self.spreading_activation.row_named(text)
+        aligned_vector = vector[self.concept_label_map]
+        weighted_vector = aligned_vector ** 3
+        weighted_vector /= sum(weighted_vector)
+        colorfulness = divisi2.dot(aligned_vector.hat(), self.smaller_color_matrix)[3]
+        color = divisi2.dot(weighted_vector, self.smaller_color_matrix)[:3]
+        return divisi2.DenseVector([color[0], color[1], color[2], colorfulness], OrderedSet(["L", "a", "b", "colorfulness"]))
+
+    def rgb_color_for_concept(self, text):
+        l,a,b,c = self.lab_color_for_concept(text)
+        r, g, b = lab_to_rgb((l,a,b))
+        return divisi2.DenseVector([r, g, b, c], OrderedSet(["red", "green", "blue", "colorfulness"]))
+
+
+def make_colorizer():
+    from csc.divisi2 import examples
+    log.info('Loading ConceptNet matrix')
+    sa = examples.spreading_activation()
+    log.info('Loading color matrix')
+    colors = make_color_matrix()
+    log.info('Building colorizer')
+    return Colorizer(sa, colors)
+
+def euclid(t1, t2):
+    sumofsquares = 0
+    for x in range(len(t1)):
+        sumofsquares += (float(t1[x]) - float(t2[x]))**2
+    return math.sqrt(sumofsquares)
+    
+
+def run_leave_n_out():
+    from csc.divisi2 import examples
+    log.info('Loading ConceptNet matrix')
+    sa = examples.spreading_activation()
+    log.info('Loading test info')
+    train, test = make_user_test()
+    log.info('Building colorizer')
+    cmatrix = make_color_matrix_for_test(train)
+    colorizer = Colorizer(sa, cmatrix)
+
+    dist_dict = {}
+    for concept in test.keys():
+        try:
+            labout = tuple(colorizer.lab_color_for_concept(concept)[:3])
+        except TypeError:
+            continue
+        labact = medianesque(test[concept])
+        dist = euclid(labout,labact)
+        dist_dict[concept] = dist
+        print concept, labact, labout, str(dist)
+    total = sum(dist_dict.values())
+    assert False
+    return total/len(dist_dict)
         
-        non_color_weight = numpy.maximum(0, divisi2.dot(self.U_slice * self.S * self.S, vector))**4
-        color_weight = non_color_weight * self.colors_slice[:, 3]
         
-        total_nc_weight = numpy.sum(non_color_weight)
-        total_weight = numpy.sum(color_weight)
+#colorizer = make_colorizer()
 
-        avg_color = divisi2.dot(color_weight, self.colors_slice) / total_weight
-        avg_nc = divisi2.dot(non_color_weight, self.colors_slice) / total_nc_weight
-
-        result = numpy.zeros((4,))
-        result[0:3] = avg_color[0:3]
-        result[3] = avg_nc[3]
-        return result
+print run_leave_n_out()
 
 # vim:tw=0:

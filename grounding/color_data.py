@@ -5,10 +5,10 @@ from grounding.models import ColorAssertion, NotColorfulAssertion
 from csc.util.persist import PickleDict
 from csc import divisi2
 from colormath.color_objects import LuvColor, LabColor, RGBColor
-from grounding.colorizer import Colorizer
 import numpy as np
 import logging
 import random
+
 
 def rgb_to_luv(rgb):
     rgbcolor = RGBColor(*rgb)
@@ -57,66 +57,34 @@ def medianesque(array):
 def component_median(array):
     return np.median(array, axis=0)
 
-@pd.lazy(version=2)
-def make_luv_color_data():
-    objects_and_colors = defaultdict(list)
-
-    # Nodebox
-    print "Constructing from NodeBox"
-    for color in colorlist:
-        data_stream = resource_stream('grounding', 'data/nodebox/' + color + '.txt')
-        sets = [x.strip('\n') for x in data_stream.readlines()]
-        clist = ','.join(sets)
-        words = clist.split(',')            
-        for word in words:
-            word = word.strip()
-            if word == '': continue
-            print color, word
-            objects_and_colors[en.nl.normalize(word)].append(rgb_to_luv(rgb[color]))
-
-    # ConceptNet
-    print "Constructing from ConceptNet"
-    for color in colorlist:
-        assertions = Assertion.objects.filter(
-            concept2__text=color,
-            relation__name='HasProperty',
-            language__id='en',
-            score__gt=0,
-            frequency__value__gt=0,
-        )
-        for theassertion in assertions:
-            object = theassertion.concept1.text
-            print color, object
-            objects_and_colors[object].append(rgb_to_luv(rgb[color]))
-
-    # Color Doctor
-    print "Constructing from Color Doctor"
-    colorful = ColorAssertion.objects.filter(score__gt=0,)
-    for cd in colorful:
-        object = cd.concept.text
-        ccolor = cd.color
-        color = (ccolor.red, ccolor.green, ccolor.blue)
-        print color, object
-        objects_and_colors[object].append(color)
-
-    # xkcd
+@pd.lazy(version=1)
+def training_and_test_data():
     print "Constructing from xkcd"
+    train = defaultdict(list)
+    test = defaultdict(list)
+
     with open('grouped_color_data.txt') as inputlines:
         for line in inputlines:
             try:
                 colorname, userid, r, g, b, monitor, colorblind, male = line.strip().split('|')
             except ValueError:
                 continue
+            if random.random < 0.5: target=train
+            else: target=test
             rgblist = [float(r), float(g), float(b)]
-            for concept in en.nl.extract_concepts(colorname, check_conceptnet=True):
-                print rgblist, concept
-                objects_and_colors[concept].append(rgb_to_luv(rgblist))
+            target[concept].append(rgblist)
+            print concept
 
-    return objects_and_colors
+    return train, test
 
 @pd.lazy(version=2)
 def make_lab_color_data():
+    """
+    Returns a dictionary mapping color names to lists of Lab color values.
+    """
     objects_and_colors = defaultdict(list)
+    #xkcd_train, xkcd_test = training_and_test_data()
+
 
     # Nodebox
     print "Constructing from NodeBox"
@@ -170,6 +138,21 @@ def make_lab_color_data():
                 objects_and_colors[concept].append(rgb_to_lab(rgblist))
 
     return objects_and_colors
+
+@pd.lazy(version=2)
+def make_user_test():
+    import random
+    dict = make_lab_color_data()
+    keys = dict.keys()
+    training_dict = {}
+    test_dict = {}
+    for key in keys:
+        if random.random() < 0.5:
+            training_dict[key] = dict[key]
+        else:
+            test_dict[key] = dict[key]
+    return (training_dict, test_dict)
+    
 
 @pd.lazy(version=2)
 def make_color_data():
@@ -255,13 +238,34 @@ def make_color_matrix():
         colors.set_entry_named(thing, 'colorful', colorfulness)
 
     for thing, values in objects_and_colors.items():
-        L, a, b = medianesque(np.array(values))
+        L, a, b = np.mean(np.array(values), axis=0)
 
         colors.set_entry_named(thing, 'L', L)
         colors.set_entry_named(thing, 'a', a)
         colors.set_entry_named(thing, 'b', b)
 
     return colors
+
+def make_color_matrix_for_test(objects_and_colors):
+    colorfulness = get_colorfulness()
+    objects = divisi2.OrderedSet()
+    objects.extend(objects_and_colors.keys())
+    colors = divisi2.DenseMatrix(row_labels=objects, col_labels=['L','a','b','colorful'])
+    for thing,values in colorfulness.items():
+        if thing in objects:
+            colorfulness = np.sum(values)/len(values)
+            colors.set_entry_named(thing, 'colorful', colorfulness)
+
+    for thing, values in objects_and_colors.items():
+        L, a, b = medianesque(np.array(values))
+
+        colors.set_entry_named(thing, 'L', L)
+        colors.set_entry_named(thing, 'a', a)
+        colors.set_entry_named(thing, 'b', b)
+
+    colors2 = colors
+    return colors2
+
 
 def nearest_color(colormat, rgb):
     lab = rgb_to_lab(rgb)
@@ -270,13 +274,3 @@ def nearest_color(colormat, rgb):
     best = np.argmin(distances)
     return colormat.row_label(best)
 
-def make_colorizer():
-    log.info('Loading ConceptNet matrix')
-    cnet = divisi2.network.conceptnet_matrix('en')
-    log.info('Loading color matrix')
-    colors = make_color_matrix()
-    log.info('Building colorizer')
-    return Colorizer(cnet, colors)
-
-colorizer = make_colorizer()
-#x11 = x11_matrix()
