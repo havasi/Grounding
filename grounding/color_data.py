@@ -74,11 +74,26 @@ def training_and_test_data():
             combined[colorname].append(rgblist)
             print colorname.decode('utf-8').encode('ascii', 'replace')
     
+    from csc.divisi2.examples import spreading_activation
+    spread = spreading_activation()
+    import random
+    possible_concepts = set(spread.row_labels) & set(combined)
+    test_concepts = random.sample(possible_concepts, 200)
+    out = open('test_concepts.txt', 'w')
+    for concept in test_concepts:
+        print "Test concept:", concept
+        print >> out, concept
+    out.close()
+
     training = True
     for colorname in combined:
-        if training: target = train
-        else: target = test
-        training = not training
+        concepts = en.nl.extract_concepts(colorname, check_conceptnet=True)
+        censored = False
+        for concept in concepts:
+            if concept in test_concepts:
+                censored = True
+        if censored: target = test
+        else: target = train
         target[colorname] = combined[colorname]
     return train, test
 
@@ -218,15 +233,12 @@ def get_colorfulness():
 
 @pd.lazy(version=4)
 def make_color_matrix():
-    colorfulness = get_colorfulness()
+    #colorfulness = get_colorfulness()
     objects_and_colors = make_lab_color_data()
     objects = divisi2.OrderedSet()
-    objects.extend(colorfulness.keys())
+    #objects.extend(colorfulness.keys())
     objects.extend(objects_and_colors.keys())
     colors = divisi2.DenseMatrix(row_labels=objects, col_labels=['L','a','b','colorful'])
-    for thing,values in colorfulness.items():
-        colorfulness = np.sum(values)/len(values)
-        colors.set_entry_named(thing, 'colorful', colorfulness)
 
     for thing, values in objects_and_colors.items():
         L, a, b = np.mean(np.array(values), axis=0)

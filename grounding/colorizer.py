@@ -9,7 +9,6 @@ log = logging.getLogger('colorizer')
 log.setLevel(logging.INFO)
 logging.basicConfig()
 
-
 class Colorizer(object):
     def __init__(self, spreading_activation, color_matrix):
         self.spreading_activation = spreading_activation
@@ -22,18 +21,25 @@ class Colorizer(object):
     def lab_color_for_concept(self, concept):
         if concept in self.color_matrix.row_labels:
             return self.color_matrix.row_named(concept)
-        assert concept in self.spreading_activation.row_labels
+        starting_set = en.nl.extract_concepts(concept)
+        if not starting_set: return None
 
-        vector = self.spreading_activation.row_named(concept)
+        category = divisi2.SparseVector.from_counts(starting_set)
+        vector = self.spreading_activation.left_category(category)
         aligned_vector = vector[self.concept_label_map]
         #aligned_vector /= numpy.sum(aligned_vector)
         #color = divisi2.dot(aligned_vector, self.smaller_color_matrix)
-        print concept, ':'
-        for key, value in aligned_vector.top_items(9):
-            print '\t', key, value, lab_to_rgb(self.color_matrix.row_named(key))
-        best_colors = [self.color_matrix.row_named(x[0]) for x in aligned_vector.top_items(9)]
-        color = medianesque(best_colors)
-        print '\t', lab_to_rgb(color)
+        
+        sparse_vector = divisi2.SparseVector.from_named_entries([(value, key) for (key, value) in aligned_vector.top_items(10)])
+        sparse_vector /= sparse_vector.vec_op(numpy.sum)
+        color = divisi2.aligned_matrix_multiply(sparse_vector, self.smaller_color_matrix)[:3]
+
+        #print concept, ':'
+        #for key, value in aligned_vector.top_items(9):    
+        #    print '\t', key, value, lab_to_rgb(self.color_matrix.row_named(key))
+        #best_colors = [self.color_matrix.row_named(x[0]) for x in aligned_vector.top_items(9)]
+        #color = medianesque(best_colors)
+        #print '\t', lab_to_rgb(color)
 
         return divisi2.DenseVector(color, OrderedSet(["L", "a", "b"]))
 
@@ -51,7 +57,7 @@ class Colorizer(object):
         print concepts
         for key, value in aligned_vector.top_items(9):
             print '\t', key, lab_to_rgb(self.color_matrix.row_named(key))
-        best_colors = [self.color_matrix.row_named(x[0]) for x in aligned_vector.top_items(9)]
+        best_colors = [self.color_matrix.row_named(x[0]) for x in aligned_vector.top_items(5)]
         color = medianesque(best_colors)
         print '\t', lab_to_rgb(color)
 
