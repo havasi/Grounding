@@ -19,14 +19,15 @@ class Colorizer(object):
         self.smaller_color_matrix = self.color_matrix[self.color_label_map]
 
     def lab_color_for_concept(self, concept):
-        if concept in self.color_matrix.row_labels:
-            return self.color_matrix.row_named(concept)
+        #if concept in self.color_matrix.row_labels:
+        #    return self.color_matrix.row_named(concept)
         starting_set = en.nl.extract_concepts(concept)
         if not starting_set: return None
 
         category = divisi2.SparseVector.from_counts(starting_set)
         vector = self.spreading_activation.left_category(category)
         aligned_vector = vector[self.concept_label_map]
+        print aligned_vector.top_items()
         #aligned_vector /= numpy.sum(aligned_vector)
         #color = divisi2.dot(aligned_vector, self.smaller_color_matrix)
         
@@ -41,6 +42,21 @@ class Colorizer(object):
         #color = medianesque(best_colors)
         #print '\t', lab_to_rgb(color)
 
+        return divisi2.DenseVector(color, OrderedSet(["L", "a", "b"]))
+
+    def lab_color_for_concept_wordnet(self, concept):
+        if concept in self.color_matrix.row_labels:
+            return self.color_matrix.row_named(concept)
+
+        aligned_vector = wordnet_vector(concept, self.smaller_color_matrix.row_labels)
+        if aligned_vector is None or numpy.sum(aligned_vector) == 0:
+            return None
+
+        print 'wordnet', aligned_vector.top_items()
+        sparse_vector = divisi2.SparseVector.from_named_entries([(value, key) for (key, value) in aligned_vector.top_items(10)])
+        sparse_vector /= sparse_vector.vec_op(numpy.sum)
+        color = divisi2.aligned_matrix_multiply(sparse_vector, self.smaller_color_matrix)[:3]
+        
         return divisi2.DenseVector(color, OrderedSet(["L", "a", "b"]))
 
     def rgb_color_for_concept(self, text):
@@ -62,7 +78,22 @@ def euclid(t1, t2):
     for x in range(len(t1)):
         sumofsquares += (float(t1[x]) - float(t2[x]))**2
     return math.sqrt(sumofsquares)
-    
+
+def wordnet_vector(concept, conceptlist):
+    from nltk.corpus import wordnet
+    start_points = wordnet.lemmas(concept.replace(' ', '_'))
+    if not start_points: return None
+    results = divisi2.DenseVector(None, conceptlist)
+    for concept2 in conceptlist:
+        end_points = wordnet.lemmas(concept2.replace(' ', '_'))
+        best_sim = 0.0
+        for start_point in start_points:
+            for end_point in end_points:
+                sim = start_point.synset.wup_similarity(end_point.synset)
+                if sim > best_sim: best_sim = sim
+        results[results.index(concept2)] = best_sim
+    return results
+
 def run_leave_n_out():
     from csc.divisi2 import examples
     import colors
@@ -81,7 +112,6 @@ def run_leave_n_out():
     distances = {
         'baseline': [],
         'weighted': [],
-        'nodebox_prism': [],
         'inter_annotator': [],
     }
 
@@ -91,7 +121,10 @@ def run_leave_n_out():
             labout = tuple(colorizer.lab_color_for_concept(colorname)[:3])
         except TypeError:
             continue
+
+
         labact = test[colorname]
+        rgbact = lab_to_rgb(labact)
         dist = euclid(labout,labact)
         
         distances['weighted'].append(dist)
@@ -99,13 +132,22 @@ def run_leave_n_out():
         baseline = euclid([50, 0, 0], labact)
         distances['baseline'].append(baseline)
         
-        try:
-            prismdata = [rgb_to_lab([color.__r, color.__g, color.__b]) for color in colors.prism(colorname)]
-            prism_avg = numpy.mean(numpy.array(prismdata), axis=0)
-            prism_dist = euclid(prism_avg, labact)
-            distances['nodebox_prism'].append(prism_dist)
-        except ZeroDivisionError:
-            pass
+        #try:
+        #    wnout = tuple(colorizer.lab_color_for_concept_wordnet(colorname)[:3])
+        #    wndist = euclid(wnout, labact)
+        #    distances['wordnet'].append(wndist)
+        #    rgbwnout = lab_to_rgb(wnout)
+        #    print colorname, '(wordnet)', rgbact, rgbwnout, str(wndist)
+        #except TypeError:
+        #    pass
+
+        #try:
+        #    prismdata = [rgb_to_lab([color.__r, color.__g, color.__b]) for color in colors.prism(colorname)]
+        #    prism_avg = numpy.mean(numpy.array(prismdata), axis=0)
+        #    prism_dist = euclid(prism_avg, labact)
+        #    distances['nodebox_prism'].append(prism_dist)
+        #except ZeroDivisionError:
+        #    pass
 
         inter_annotator = euclid(rgb_to_lab(test_input[colorname][0]), 
                                  labact)
@@ -114,7 +156,6 @@ def run_leave_n_out():
                                      labact)
         distances['inter_annotator'].append(inter_annotator)
         
-        rgbact = lab_to_rgb(labact)
         rgbout = lab_to_rgb(labout)
 
         print colorname, rgbact, rgbout, str(dist)
@@ -122,6 +163,7 @@ def run_leave_n_out():
     totals = {}
     for key, values in distances.items():
         totals[key] = sum(values)/len(values)
+    totals['total'] = len(distances['weighted'])
     print totals
     return totals
 

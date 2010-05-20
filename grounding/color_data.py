@@ -74,6 +74,10 @@ def training_and_test_data():
             combined[colorname].append(rgblist)
             print colorname.decode('utf-8').encode('ascii', 'replace')
     
+    #for colorname in combined.keys():
+    #    if len(combined[colorname]) < 3:
+    #        del combined[colorname]
+    
     from csc.divisi2.examples import spreading_activation
     spread = spreading_activation()
     import random
@@ -254,7 +258,7 @@ def make_test_data():
     train, test = training_and_test_data()
     testdata = {}
     for colorname in test:
-        if len(test[colorname]) > 3:
+        if len(test[colorname]) >= 3:
             testdata[colorname] = medianesque([rgb_to_lab(c) for c in test[colorname]])
     return testdata
 
