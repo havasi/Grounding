@@ -135,7 +135,8 @@ def make_lab_color_data():
             word = word.strip()
             if word == '': continue
             print color, word
-            objects_and_colors[en.nl.normalize(word)].append(rgb_to_lab(rgb[color]))
+            for i in xrange(100):
+                objects_and_colors[en.nl.normalize(word)].append(rgb_to_lab(rgb[color]))
 
     # ConceptNet
     print "Constructing from ConceptNet"
@@ -150,7 +151,8 @@ def make_lab_color_data():
         for theassertion in assertions:
             object = theassertion.concept1.text
             print color, object
-            objects_and_colors[object].append(rgb_to_lab(rgb[color]))
+            for i in xrange(100):
+                objects_and_colors[object].append(rgb_to_lab(rgb[color]))
 
     # ColorDoctor
     print "Constructing from Color Doctor"

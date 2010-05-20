@@ -17,52 +17,38 @@ class Colorizer(object):
         self.color_label_map = [color_matrix.row_labels.index(label) for label in self.colorful_concepts]
         self.concept_label_map = [spreading_activation.row_labels.index(label) for label in self.colorful_concepts]
         self.smaller_color_matrix = self.color_matrix[self.color_label_map]
+        self.colorfulness = self.color_matrix[:,3]
 
-    def lab_color_for_concept(self, concept):
-        #if concept in self.color_matrix.row_labels:
-        #    return self.color_matrix.row_named(concept)
-        starting_set = en.nl.extract_concepts(concept)
-        if not starting_set: return None
+    def lab_color_for_text(self, concept):
+        if concept in self.color_matrix.row_labels:
+            return self.color_matrix.row_named(concept)
+        starting_set = {}
+        for subconcept in en.nl.extract_concepts(concept):
+            if subconcept in self.colorfulness.labels:
+                starting_set[subconcept] = self.colorfulness.entry_named(subconcept)
 
-        category = divisi2.SparseVector.from_counts(starting_set)
+        category = divisi2.SparseVector.from_dict(starting_set)
         vector = self.spreading_activation.left_category(category)
         aligned_vector = vector[self.concept_label_map]
+        for subconcept in en.nl.extract_concepts(concept):
+            if subconcept in aligned_vector.labels:
+                index = aligned_vector.index(subconcept)
+                aligned_vector[index] += self.colorfulness.entry_named(subconcept)
         print aligned_vector.top_items()
         #aligned_vector /= numpy.sum(aligned_vector)
         #color = divisi2.dot(aligned_vector, self.smaller_color_matrix)
         
         sparse_vector = divisi2.SparseVector.from_named_entries([(value, key) for (key, value) in aligned_vector.top_items(10)])
-        sparse_vector /= sparse_vector.vec_op(numpy.sum)
-        color = divisi2.aligned_matrix_multiply(sparse_vector, self.smaller_color_matrix)[:3]
+        sparse_vector /= (sparse_vector.vec_op(numpy.sum) + 0.000001)
+        color = divisi2.aligned_matrix_multiply(sparse_vector, self.smaller_color_matrix)
 
-        #print concept, ':'
-        #for key, value in aligned_vector.top_items(9):    
-        #    print '\t', key, value, lab_to_rgb(self.color_matrix.row_named(key))
-        #best_colors = [self.color_matrix.row_named(x[0]) for x in aligned_vector.top_items(9)]
-        #color = medianesque(best_colors)
-        #print '\t', lab_to_rgb(color)
+        return divisi2.DenseVector(color, OrderedSet(["L", "a", "b", "colorful"]))
+    lab_color_for_concept = lab_color_for_text
 
-        return divisi2.DenseVector(color, OrderedSet(["L", "a", "b"]))
-
-    def lab_color_for_concept_wordnet(self, concept):
-        if concept in self.color_matrix.row_labels:
-            return self.color_matrix.row_named(concept)
-
-        aligned_vector = wordnet_vector(concept, self.smaller_color_matrix.row_labels)
-        if aligned_vector is None or numpy.sum(aligned_vector) == 0:
-            return None
-
-        print 'wordnet', aligned_vector.top_items()
-        sparse_vector = divisi2.SparseVector.from_named_entries([(value, key) for (key, value) in aligned_vector.top_items(10)])
-        sparse_vector /= sparse_vector.vec_op(numpy.sum)
-        color = divisi2.aligned_matrix_multiply(sparse_vector, self.smaller_color_matrix)[:3]
-        
-        return divisi2.DenseVector(color, OrderedSet(["L", "a", "b"]))
-
-    def rgb_color_for_concept(self, text):
-        l,a,b = self.lab_color_for_concept(text)
+    def color_for_text(self, text):
+        l,a,b,c = self.lab_color_for_concept(text)
         r, g, b = lab_to_rgb((l,a,b))
-        return divisi2.DenseVector([r, g, b], OrderedSet(["red", "green", "blue"]))
+        return divisi2.DenseVector([r, g, b, c], OrderedSet(["red", "green", "blue", "colorful"]))
 
 def make_colorizer():
     from csc.divisi2 import examples
@@ -167,8 +153,7 @@ def run_leave_n_out():
     print totals
     return totals
 
-#colorizer = make_colorizer()
 if __name__ == '__main__':
-    print run_leave_n_out()
+    colorizer = make_colorizer()
 
 # vim:tw=0:
