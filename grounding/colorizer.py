@@ -20,13 +20,14 @@ class Colorizer(object):
         self.colorfulness = self.color_matrix[:,3]
 
     def lab_color_for_text(self, concept):
-        if concept in self.color_matrix.row_labels:
-            return self.color_matrix.row_named(concept)
+        #if concept in self.color_matrix.row_labels:
+        #    return self.color_matrix.row_named(concept)
         starting_set = {}
         for subconcept in en.nl.extract_concepts(concept):
             if subconcept in self.colorfulness.labels:
                 starting_set[subconcept] = self.colorfulness.entry_named(subconcept)
-
+        if not starting_set:
+            return divisi2.DenseVector([0,0,0,0], OrderedSet(["L", "a", "b", "colorful"]))
         category = divisi2.SparseVector.from_dict(starting_set)
         vector = self.spreading_activation.left_category(category)
         aligned_vector = vector[self.concept_label_map]

@@ -255,7 +255,7 @@ def get_colorfulness():
     colorfulness = {}
     for object in objects_and_colors:
         yes = 0
-        no = 10
+        no = 100
         yes += len(objects_and_colors[object])
         no += NotColorfulAssertion.objects.filter(score__gt=0, concept__text=object).count()
         colorfulness[object] = float(yes) / (yes+no)
