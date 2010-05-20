@@ -58,6 +58,21 @@ def component_median(array):
     return np.median(array, axis=0)
 
 @pd.lazy(version=1)
+def xkcd_data():
+    xkcd = defaultdict(list)
+
+    with open('grouped_color_data.txt') as inputlines:
+        for line in inputlines:
+            try:
+                colorname, userid, r, g, b, monitor, colorblind, male = line.strip().split('|')
+            except ValueError:
+                continue
+            rgblist = [float(r), float(g), float(b)]
+            xkcd[colorname].append(rgblist)
+            print colorname.decode('utf-8').encode('ascii', 'replace')
+    return xkcd
+
+@pd.lazy(version=1)
 def training_and_test_data():
     print "Constructing test/train from xkcd"
     train = defaultdict(list)
@@ -107,7 +122,7 @@ def make_lab_color_data():
     Returns a dictionary mapping color names to lists of Lab color values.
     """
     objects_and_colors = defaultdict(list)
-    xkcd_train, xkcd_test = training_and_test_data()
+    xkcd = xkcd_data()  # formerly used training data with held-out tests
 
     # Nodebox
     print "Constructing from NodeBox"
@@ -137,12 +152,22 @@ def make_lab_color_data():
             print color, object
             objects_and_colors[object].append(rgb_to_lab(rgb[color]))
 
+    # ColorDoctor
+    print "Constructing from Color Doctor"
+    colorful = ColorAssertion.objects.filter(score__gt=0,)
+    for cd in colorful:
+        object = cd.concept.text
+        ccolor = cd.color
+        color = (ccolor.red, ccolor.green, ccolor.blue)
+        print color, object
+        objects_and_colors[object].append(rgb_to_lab(color))
+    
     # xkcd
     print "Constructing from xkcd"
-    for text in xkcd_train:
+    for text in xkcd:
         concepts = en.nl.extract_concepts(text, check_conceptnet=True)
         for concept in concepts:
-            objects_and_colors[concept].extend([rgb_to_lab(x) for x in xkcd_train[text]])
+            objects_and_colors[concept].extend([rgb_to_lab(x) for x in xkcd[text]])
             print concept
 
     return objects_and_colors
@@ -225,19 +250,18 @@ def make_color_data():
 def get_colorfulness():
     objects_and_colors = make_lab_color_data()
     print "Finding Uncolorful Concepts"
-    colorfulness = defaultdict(list)
+    colorfulness = {}
     for object in objects_and_colors:
-        colorfulness[object].append(1)
-    notcolor = NotColorfulAssertion.objects.filter(score__gt=0)
-    for lack in notcolor:
-        object = lack.concept.text
-        print object
-        colorfulness[object].append(0)
+        yes = 0
+        no = 10
+        yes += len(objects_and_colors[object])
+        no += NotColorfulAssertion.objects.filter(score__gt=0, concept__text=object).count()
+        colorfulness[object] = float(yes) / (yes+no)
     return colorfulness
 
 @pd.lazy(version=4)
 def make_color_matrix():
-    #colorfulness = get_colorfulness()
+    colorfulness = get_colorfulness()
     objects_and_colors = make_lab_color_data()
     objects = divisi2.OrderedSet()
     #objects.extend(colorfulness.keys())
@@ -250,6 +274,7 @@ def make_color_matrix():
         colors.set_entry_named(thing, 'L', L)
         colors.set_entry_named(thing, 'a', a)
         colors.set_entry_named(thing, 'b', b)
+        colors.set_entry_named(thing, 'colorful', colorfulness[thing])
 
     return colors
 
@@ -261,27 +286,6 @@ def make_test_data():
         if len(test[colorname]) >= 3:
             testdata[colorname] = medianesque([rgb_to_lab(c) for c in test[colorname]])
     return testdata
-
-def make_color_matrix_for_test(objects_and_colors):
-    colorfulness = get_colorfulness()
-    objects = divisi2.OrderedSet()
-    objects.extend(objects_and_colors.keys())
-    colors = divisi2.DenseMatrix(row_labels=objects, col_labels=['L','a','b','colorful'])
-    for thing,values in colorfulness.items():
-        if thing in objects:
-            colorfulness = np.sum(values)/len(values)
-            colors.set_entry_named(thing, 'colorful', colorfulness)
-
-    for thing, values in objects_and_colors.items():
-        L, a, b = medianesque(np.array(values))
-
-        colors.set_entry_named(thing, 'L', L)
-        colors.set_entry_named(thing, 'a', a)
-        colors.set_entry_named(thing, 'b', b)
-
-    colors2 = colors
-    return colors2
-
 
 def nearest_color(colormat, rgb):
     lab = rgb_to_lab(rgb)
