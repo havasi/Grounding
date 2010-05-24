@@ -20,8 +20,8 @@ class Colorizer(object):
         self.colorfulness = self.color_matrix[:,3]
 
     def lab_color_for_text(self, concept):
-        #if concept in self.color_matrix.row_labels:
-        #    return self.color_matrix.row_named(concept)
+        if concept in self.color_matrix.row_labels:
+            return self.color_matrix.row_named(concept)
         starting_set = {}
         for subconcept in en.nl.extract_concepts(concept):
             if subconcept in self.colorfulness.labels:
