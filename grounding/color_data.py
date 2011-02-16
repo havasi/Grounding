@@ -8,12 +8,18 @@ from colormath.color_objects import LuvColor, LabColor, RGBColor
 import numpy as np
 import logging
 import random
-
+import math
 
 def rgb_to_luv(rgb):
     rgbcolor = RGBColor(*rgb)
     luvcolor = rgbcolor.convert_to('xyz').convert_to('luv')
     return (luvcolor.luv_l, luvcolor.luv_u, luvcolor.luv_v)
+
+def rgb_to_wheel(rgb):
+    rgbcolor = RGBColor(*rgb)
+    hsvcolor = rgbcolor.convert_to('hsv')
+    angle = hsvcolor.hsv_h*2*math.pi/360
+    return (math.sin(angle) * hsvcolor.hsv_s, math.cos(angle) * hsvcolor.hsv_s)
 
 def rgb_to_lab(rgb):
     rgbcolor = RGBColor(*rgb)

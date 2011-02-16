@@ -48,6 +48,8 @@ class Colorizer(object):
 
     def color_for_text(self, text):
         l,a,b,c = self.lab_color_for_concept(text)
+        # hacky fix for dimness
+        l *= 1.25
         r, g, b = lab_to_rgb((l,a,b))
         return divisi2.DenseVector([r, g, b, c], OrderedSet(["red", "green", "blue", "colorful"]))
 

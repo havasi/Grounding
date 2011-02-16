@@ -3,14 +3,14 @@
 <html xmlns="http://www.w3.org/1999/xhtml">
 <head>
 <title>
-Colorizer v1.0
+Colorizer
 </title>
 <meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1" />
 <link rel="stylesheet" type="text/css" href="/static/colorizer/styles.css" />
 </head>
 <body>
 <div id="content">
-<h2>Colorizer v1.0</h2>
+<h2>Colorizer</h2>
 <div class="form-container">
 {% if coloredtext and not errors %}
 	{% if coloredtext.colored %}<div class="colors" style="background-color:{{coloredtext.color}}; border-color:{{coloredtext.bordercolor}}; color:{{coloredtext.fontcolor}}">{% endif %}
@@ -60,13 +60,13 @@ Colorizer v1.0
 
 	<form action="" method="post">
 	
-	<p class="legend">Please enter any English text and select the smallest lexical unit that should be colorized.</p><p class="legend"><strong>Note:</strong> Denote paragraphs by inserting one empty line between each adjacent pair of paragraphs.</p>
+	<!--<p class="legend">Please enter any English text and select the smallest lexical unit that should be colorized.</p><p class="legend"><strong>Note:</strong> Denote paragraphs by inserting one empty line between each adjacent pair of paragraphs.</p>-->
 	
 	<fieldset>
 		<legend>Input</legend>
-			<div><label for="text" class="error">Text <em>*</em></label> <textarea id="text" name="text" rows="10" cols="50" >{% if originaltext %}{{originaltext}}{% endif %}</textarea></div>
+			<div><!--<label for="text" class="error">Text <em>*</em></label>--> <textarea id="text" name="text" rows="10" cols="50" >{% if originaltext %}{{originaltext}}{% endif %}</textarea></div>
 	</fieldset>
-	<fieldset>
+	<fieldset style="display: none;"
 		<legend>Options</legend>
 			<div class="controlset">
 				<span class="label">Color Depth</span>
@@ -79,15 +79,13 @@ Colorizer v1.0
 				</div>
 			</div>
 	</fieldset>
-
-    <fieldset>
+    <div class="buttonrow">
+		<input type="submit" value="Color it!" class="button" />
+	</div>
+    <fieldset style="display: none;">
         <legend>Examples</legend>
         <ul id="examples"/>
     </fieldset>
-	
-    <div class="buttonrow">
-		<input type="submit" value="Submit" class="button" />
-	</div>
 
 </form>
 </div><!-- /form-container-->
