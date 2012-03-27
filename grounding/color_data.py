@@ -160,16 +160,6 @@ def make_lab_color_data():
             for i in xrange(100):
                 objects_and_colors[object].append(rgb_to_lab(rgb[color]))
 
-    # ColorDoctor
-    print "Constructing from Color Doctor"
-    colorful = ColorAssertion.objects.filter(score__gt=0,)
-    for cd in colorful:
-        object = cd.concept.text
-        ccolor = cd.color
-        color = (ccolor.red, ccolor.green, ccolor.blue)
-        print color, object
-        objects_and_colors[object].append(rgb_to_lab(color))
-    
     # xkcd
     print "Constructing from xkcd"
     for text in xkcd:
